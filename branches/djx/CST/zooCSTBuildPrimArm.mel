@@ -1,0 +1,493 @@
+zooArrays_str;
+zooAttrUtils;
+zooBrandTools;
+zooCSTUtils;
+zooFlags;
+zooTriggeredUtils;
+zooObjMenuUtils;
+zooCSTPrimitives;
+zooSpaceSwitching;
+zooRenamerUtils;
+
+
+//script documentation is at the end of this file
+
+// DJ MOD
+//	Add "toggle elbow control" rmb-menu
+//	Add "flip lower twist" rmb-menu
+//		note: this is a manual workaround for flipping that we get when wrist x-rotation bigger than 180deg in either direction
+//				It is in the experimental stage and only works for a 1-split forearm (but works well in this case)
+//	Instead of using the _body_ctrls qss, create a qss for the controls in each primitive
+//	Turn the blend pref off
+//	Make sure nameCache matches connects - STILL NOT WORKING
+// 	Add "reset to rig pose" obj menu
+//	When switching ik/fk if the control handle is not the only thing selected there will be problems. Remove this limitation.
+//	Improve the "switch to IK/FK for all keys" function - using the new zooSwitchForAllKeys.mel
+//	Add auto clavicle option - WORK IN PROGRESS
+
+global proc string[] zooCSTBuildPrimArm( string $prefix, string $parity, string $bicep, string $elbow, string $wrist, string $optionStr ) {
+	//echo the rotation settings of the wrist - this is done because the ik arm controls are oriented to the wrist, therefore its orientation is important.
+	//by echoing the current rotation values, these numbers can be captured by rig macro recording tools
+	//
+	echoRigElementCreationCommand ( "setAttr "+ $wrist +".r "+ (zooArrayToStr_float(`getAttr ( $wrist+".r" )`," ")) );
+	echoRigElementCreationCommand ( "zooCSTBuildPrimArm \""+ $prefix +"\" "+ $parity +" "+ $bicep +" "+ $elbow +" "+ $wrist +" \""+ $optionStr +"\";" );
+	//------
+	//parse optionStr to determine which flags are enabled for this proc
+	//------
+		string $optionTemp[] = {};
+		string $parents[] = {};
+		string $clavControl = "";
+		string $rootFlag;
+		string $chestFlag;
+		string $headFlag;
+		string $colour = $parity=="r"? "red 0.65": "green 0.65";
+		float $scale = 1;
+		int $buildclav = 1;
+		int $spaceswitching = 1;
+		int $pickwalking = 1;
+		int $stretch = 0;
+
+		$optionTemp = `zooGetFlagArguments $optionStr root`; if( `size $optionTemp` ) $rootFlag = $optionTemp[0];
+		$optionTemp = `zooGetFlagArguments $optionStr chest`; if( `size $optionTemp` ) $chestFlag = $optionTemp[0];
+		$optionTemp = `zooGetFlagArguments $optionStr head`; if( `size $optionTemp` ) $headFlag = $optionTemp[0];
+		$optionTemp = `zooGetFlagArguments $optionStr buildclav`; if( `size $optionTemp` ) $buildclav = $optionTemp[0];
+		$optionTemp = `zooGetFlagArguments $optionStr clavcontrol`; if( `objExists $optionTemp[0]` ) $clavControl = $optionTemp[0];
+		$optionTemp = `zooGetFlagArguments $optionStr spaceswitching`; if( `size $optionTemp` ) $spaceswitching = $optionTemp[0];
+		$optionTemp = `zooGetFlagArguments $optionStr pickwalking`; if( `size $optionTemp` ) $pickwalking = $optionTemp[0];
+		$optionTemp = `zooGetFlagArguments $optionStr colour`; if( `size $optionTemp` ) $colour = `zooArrayToStr_str $optionTemp " "`;
+		$optionTemp = `zooGetFlagArguments $optionStr scale`; if( `size $optionTemp` ) $scale = $optionTemp[0];
+		$optionTemp = `zooGetFlagArguments $optionStr stretch`; if( `size $optionTemp` ) $stretch = $optionTemp[0];
+		$optionTemp = `zooGetFlagArguments $optionStr parents`; if( `size $optionTemp` ) $parents = $optionTemp;
+
+		// DJ MOD
+		// turn the blend pref off
+		if(`optionVar -q animBlendingOpt`) {
+			optionVar -iv animBlendingOpt 0;
+			warning("zooCSTBuildPrimArm: Animation Blending has been turned OFF in Maya prefs (zooCST requirement)");
+		}
+
+
+	//------
+	//always build the world first - the world creation proc only builds the world once for any given prefix, so a world control is never created more than once
+	//------
+		string $suffix = ( $parity == "r" )?"_R":"_L";
+		string $id = `zooCSTGetPrimId arm $suffix $prefix`;
+		string $worldParts[] = `zooCSTBuildWorld $prefix $optionStr`;
+		string $controls[] = `zooCSTBuildIKFK $prefix $parity $bicep $elbow $wrist ( "-id "+ $id +" "+ $optionStr )`;
+		string $primitive = `zooCSTCreatePrimRecord arm $id $prefix`;
+		
+	// DJ MOD - Contrl name/number DISCOVERY
+	//for( $n=0; $n<`size $controls`; $n++ ) print("BEFORE control "+$n+" = "+$controls[$n]+"\n");
+
+	//------
+	//rename the objects created by the ikfk proc
+	//------
+		for( $n=0; $n<`size $controls`; $n++ ) $controls[$n] = `zooRenamerFunctions replace limbUpper bicep $controls[$n]`;
+		for( $n=0; $n<`size $controls`; $n++ ) $controls[$n] = `zooRenamerFunctions replace limbMiddle elbow $controls[$n]`;
+		for( $n=0; $n<`size $controls`; $n++ ) $controls[$n] = `zooRenamerFunctions replace limbEnd wrist $controls[$n]`;
+		for( $n=0; $n<`size $controls`; $n++ ) $controls[$n] = `zooRenamerFunctions replace pole elbow $controls[$n]`;
+		for( $n=0; $n<`size $controls`; $n++ ) $controls[$n] = `zooRenamerFunctions replace limb arm $controls[$n]`;
+
+	// DJ MOD - Contrl name/number DISCOVERY
+	//for( $n=0; $n<`size $controls`; $n++ ) print("AFTER control "+$n+" = "+$controls[$n]+"\n");
+
+
+	//------
+	//create variables for each control used
+	//------
+		// DJ MOD - clean names first
+		string $armControl = $controls[0];
+		string $ikArmSpace = $controls[6];
+		string $fkArmSpace = $controls[7];
+		string $driverBicep = $controls[1];
+		string $driverElbow = $controls[2];
+		string $driverWrist  = $controls[3];
+		string $elbowControl = $controls[4];
+		string $twistControl = $controls[14];
+		string $elbowControlSpace = $controls[11];
+		string $fkControls[] = { $driverBicep, $driverElbow, $driverWrist };
+		
+		//string $armControl = `zooRenamerFunctions replace "[0-9]+$" "" $controls[0]`;
+		//string $ikArmSpace = `zooRenamerFunctions replace "[0-9]+$" "" $controls[6]`;
+		//string $fkArmSpace = `zooRenamerFunctions replace "[0-9]+$" "" $controls[7]`;
+		//string $driverBicep = `zooRenamerFunctions replace "[0-9]+$" "" $controls[1]`;
+		//string $driverElbow = `zooRenamerFunctions replace "[0-9]+$" "" $controls[2]`;
+		//string $driverWrist  = `zooRenamerFunctions replace "[0-9]+$" "" $controls[3]`;
+		//string $elbowControl = `zooRenamerFunctions replace "[0-9]+$" "" $controls[4]`;
+		//string $twistControl = `zooRenamerFunctions replace "[0-9]+$" "" $controls[14]`;
+		//string $elbowControlSpace = `zooRenamerFunctions replace "[0-9]+$" "" $controls[11]`;
+		//string $fkControls[] = { $driverBicep, $driverElbow, $driverWrist };
+	//------
+	//discover the other parts of the rig already built
+	//------
+		string $worldControl = $worldParts[0];
+		string $partsControl = $worldParts[1];
+		string $masterqss = $worldParts[2];
+		string $qss = $worldParts[3];
+		string $rootControl = zooGetElement_str( 0,`zooGetBrandedWith rootGimbal $prefix` );
+		string $chestControl = zooGetElement_str( 0,`zooGetBrandedWith chest $prefix` );
+		string $headControl = zooGetElement_str( 0,`zooGetBrandedWith headGimbal $prefix` );
+
+		if( `objExists $rootFlag` ) $rootControl = $rootFlag;
+		if( `objExists $chestFlag` ) $chestControl = $chestFlag;
+		if( `objExists $headFlag` ) $headControl = $headFlag;
+
+
+	//------
+	//build the clavicle if its wanted
+	//------
+		string $clavicle = zooGetElement_str( 0,`listRelatives -parent -path $bicep` );
+		string $armAlign = zooGetElement_str(0,`listRelatives -p $armControl`);
+		string $clavControlOrient;
+		string $constraints[] = {};
+		
+		// DJ MOD - auto clavicle
+		string $clavAuto = `group -em`;
+		$clavAuto = `rename $clavAuto ("clavAuto"+ $suffix)`;
+
+		if( !`objExists $clavicle` ) $buildclav = 0;
+		if( $buildclav ) {
+			$clavControl = `zooBuildControl ( "clavicleControl"+ $suffix ) ( "-type sphere -orient 1 -place "+ $bicep +" -align "+ $clavicle +" -placepivot %a -scale "+ ($scale*1.25) +" -colour "+ $colour )`;
+			$clavControlOrient = zooGetElement_str(0,`listRelatives -p $clavControl`);
+
+			// DJ MOD - auto clavicle - WORK IN PROGRESS
+			//	At the moment this is not working since it creates a cycle on the ik arm. Need to fix that.
+			//
+//			delete `parentConstraint $clavControl $clavAuto`;
+//			parent $clavAuto $clavControlOrient;
+//			makeIdentity -a 1 $clavAuto;
+//			parent $clavControl $clavAuto;
+//			zooAttrState "-attrs t s -k 0 -l 1" $clavAuto;
+//			string $clavAutoMult = `createNode -ss -name ("clavAutoMult"+$suffix) "multiplyDivide"`;
+//			connectAttr -f ($driverBicep +".rotate") ($clavAutoMult +".input1");
+//			connectAttr -f ($clavAutoMult +".output") ($clavAuto +".rotate");
+//			setAttr ($clavAutoMult +".operation") 1;
+//			setAttr ($clavAutoMult +".input2X") 0.5;
+//			setAttr ($clavAutoMult +".input2Y") 0.5;
+//			setAttr ($clavAutoMult +".input2Z") 0.5;
+
+			parent $clavControlOrient $worldControl;
+			if( `objExists $rootControl` ) parent $clavControlOrient $rootControl;
+			if( `objExists $chestControl` ) parent $clavControlOrient $chestControl;
+
+			zooAddArray_str(`parentConstraint $clavControl $clavicle`,$constraints);
+			zooAttrState "-attrs t r s v -k 0 -l 1" $clavControlOrient;
+			zooAttrState "-attrs t s -k 0 -l 1" $clavControl;
+			zooAttrState "-attrs v -k 0" $clavControl;
+			}
+
+		// DJ MOD - create a qss for the controls in each primitive
+		//
+		string $prim_qss = zooCST_createQSS( $prefix +"_arm_ctrls"+ $suffix  );
+		if(size($prim_qss)) sets -add $masterqss $prim_qss;
+		else warning("zooCSTBuildPrimArm: Failed to create qss called " + $prefix + "_arm_ctrls" + $suffix + " because the name clashed with an existing object.");
+
+		string $controllers[] = {};
+		$controllers = { $armControl, $elbowControl, $driverBicep, $driverElbow, $driverWrist, $twistControl };
+		if( `objExists $clavControl` ) $controllers = { $armControl, $elbowControl, $clavControl, $driverBicep, $driverElbow, $driverWrist, $twistControl };
+
+		zooAddSelectAndKeyObjectMenu($prefix, $prim_qss, $controllers, "-both");
+
+
+	//------
+	//build space switching nodes
+	//------
+		string $spaceNodes1[] = {};
+		string $spaceNodes2[] = {};
+
+		if( `objExists $clavControl` ) parent $fkArmSpace $clavControl;
+		else if( `objExists $chestControl` ) parent $fkArmSpace $chestControl;
+		else if( `objExists $rootControl` ) parent $fkArmSpace $rootControl;
+		if( $spaceswitching ) {
+			string $armControlParents[] = { $worldControl, $rootControl, $chestControl, $clavControl, $headControl };
+			if( `size $parents` ) $armControlParents = `zooAddArray_str $armControlParents $parents`;
+			$spaceNodes1 = `zooBuildSpaceSwitch $armControl $ikArmSpace $armControlParents { "world", "root", "chest", "clavicle", "head" } "-mo"`;
+			$spaceNodes2 = `zooBuildSpaceSwitch $driverBicep $fkArmSpace { $clavControl, $chestControl, $rootControl, $worldControl } { "clavicle", "chest", "root", "world" } "-mo"`;
+
+			//and for elbows
+			string $rootPos = `group -em`;
+			$rootPos = `rename $rootPos ( "elbow_pos"+ $id )`;
+			delete `parentConstraint $elbowControl $rootPos`;
+			parent $rootPos $worldControl;
+			if( `objExists $rootControl` ) pointConstraint -mo $rootControl $rootPos;
+			$spaceNodes1 = `zooBuildSpaceSwitch $elbowControl $elbowControlSpace { $chestControl, $rootControl, $rootPos } { "chest", "root", "root pos only" } "-mo"`;
+			//for( $obj in {$armControl,$elbowControl,$clavControl} ) setObjMenuKillState $obj 1;
+			//for( $obj in $fkControls ) setObjMenuKillState $obj 1;
+			}
+
+		// DJ MOD
+		//	Dont know why these are here. The attributes are locked and we just get a warning.
+		//
+		//delete -icn ( $fkArmSpace +".tx" );
+		//delete -icn ( $fkArmSpace +".ty" );
+		//delete -icn ( $fkArmSpace +".tz" );
+
+
+	//------
+	//build pickwalking if required
+	//------
+		if( $pickwalking ) {
+			zooPickwalk "-load";
+			string $parityName = "left";
+			if( $parity == "r" ) $parityName = "right";
+			zooSetPickwalkObj $clavControl $chestControl "-dir up -reciprocal 0";
+			zooSetPickwalkObj $clavControl $fkControls[0] "-dir down -reciprocal 1";
+			zooSetPickwalkObj $fkControls[0] $fkControls[1] "-dir down -reciprocal 1";
+			zooSetPickwalkObj $fkControls[1] $fkControls[2] "-dir down -reciprocal 1";
+			zooSetPickwalkObj $fkControls[2] $armControl "-dir left -reciprocal 1";
+			zooSetPickwalkObj $fkControls[2] $armControl "-dir right -reciprocal 1";
+			zooSetPickwalkObj $armControl $elbowControl "-dir up -reciprocal 1";
+			zooSetPickwalkObj $armControl $elbowControl "-dir down -reciprocal 1";
+			zooSetPickwalkObj $chestControl $clavControl ( "-dir "+ $parityName+ " -reciprocal 0" );
+			}
+
+	//------
+	//add all zooObjMenu commands to the fk controls
+	//------
+		for( $n=0; $n<3; $n++ ) {
+			int $connect1 = `zooAddConnect $fkControls[$n] $armControl`;
+			int $connect2 = `zooAddConnect $fkControls[$n] $elbowControl`;
+			int $connect3 = `zooAddConnect $fkControls[$n] $clavControl`;
+
+			zooObjMenuAddCmdAll $fkControls[$n] "select all arm controls" ( "select `ikHandle -q -jl %"+ $connect1 +"`;\nstring $effector = `ikHandle -q -ee %"+ $connect1 +"`;\nselect -add `listConnections -d 0 ( $effector +\".tx\" )`;\nselect -add %"+ $connect3+" %"+ $connect2 +" %"+ $connect1 +";" );
+
+			// DJ MOD - if the control handle is not the only thing selected there will be problems. Remove this limitation.
+			zooObjMenuAddCmdAll $fkControls[$n] "switch to IK" ( "string $sel[] = `ls -sl`;\nselect #;\nzooFlags;\nzooAlign \"\";\nzooAlignIK \"-ikHandle %"+ $connect1 +" -pole %"+ $connect2 +"\";\nselect $sel;" );
+
+			// DJ MOD - make IK/FK switching more fool proof.
+			//	Previously, for switching all keys to work, keyframes needed to be set on all fk controls, especially the ikBlend attribute
+			//	A change to zooKeyCommands now allows us to queue commands in groups seperated by "&&&",
+			//	so we can make switching work no matter what is selected and with only sparse keying on the control handles.
+			//
+			//	We select the required controls and invoke zooKeyCommands with the -combine option so we get all the keys
+			//	and the -solo option then triggers zooKeyCommands at each keyframe just once (by using only %0 as the trigger)
+			//	We run two passes of zooKeyCommands
+			//	First we set an ikBlend keyframe at each frame in the combined keyframe list (unless ikBlend=1/0, so we dont change existing full IK/FK keys)
+			//	Then we rewind and do the alignIK/FK at each of those frames
+			//
+			//	The switching command got so long so instead we shift most of it to zooSwitchForAllKeys.mel
+			//
+			//zooObjMenuAddCmdAll $fkControls[$n] "switch to IK for all keys" ( "string $sel[] = `ls -sl`;\nselect %0 %1 %2;\nsource zooKeyCommandsWin;\ncheckBox -e -v 1 zooKeyCommandsCheckCombine;\ncheckBox -e -v 1 zooKeyCommandsCheckSolo;\nzooSetKeyCommandsWindowCmd \"if(`getAttr %"+ $connect1 +".ikBlend` != 1) {\\n\\tsetKeyframe -at ikBlend %"+ $connect1 +";\\n}\\n&&&\\nif(`getAttr %"+ $connect1 +".ikBlend` != 1) {\\n\\tselect %0;\\n\\tzooFlags;\\n\\tzooAlign \\\"\\\";\\n\\tzooAlignIK \\\"-ikHandle %"+ $connect1 +" -pole %"+ $connect2 +"\\\";\\n}\";" );
+			//zooObjMenuAddCmdAll $fkControls[$n] "switch to FK for all keys" ( "string $sel[] = `ls -sl`;\nselect %"+ $connect1 +" %"+ $connect2 +";\nsource zooKeyCommandsWin;\ncheckBox -e -v 1 zooKeyCommandsCheckCombine;\ncheckBox -e -v 1 zooKeyCommandsCheckSolo;\nzooSetKeyCommandsWindowCmd \"if(`getAttr %"+ $connect1 +".ikBlend` != 0) {\\n\\tsetKeyframe -at ikBlend %"+ $connect1 +";\\n}\\n&&&\\nif(`getAttr %"+ $connect1 +".ikBlend` != 0) {\\n\\tselect %"+ $connect1 +";\\n\\tzooFlags;\\n\\tzooAlign \\\"\\\";\\n\\tzooAlignFK \\\"-ikHandle %"+ $connect1 +"\\\";\\n}\";" );
+			zooObjMenuAddCmdAll $fkControls[$n] "switch to IK for all keys" ("source zooKeyCommandsWin;\nzooSwitchForAllKeys \"-mode ik -blendAttr ikBlend -ik_ctl %"+ $connect1 +" -ik_mid %"+ $connect2 +" -fk_end %0 -selObjs %1 %2\";");
+			zooObjMenuAddCmdAll $fkControls[$n] "switch to FK for all keys" ("source zooKeyCommandsWin;\nzooSwitchForAllKeys \"-mode fk -blendAttr ikBlend -ik_ctl %"+ $connect1 +" -selObjs %"+ $connect2 +"\";");
+			}
+			
+	//------
+	//add the zooObjMenu commands to the ik control for easy switching to FK mode
+	//------
+		int $elbowNum = `zooAddConnect $armControl $elbowControl`;  //add the elbow control as a connect
+		int $clavNum = `zooAddConnect $armControl $clavControl`;  //add the clavicle as a connect
+		
+		// DJ MOD - some extra connects for the new "switch to IK for all keys" method
+		int $connect1 = `zooAddConnect $armControl $driverWrist`;
+		int $connect2 = `zooAddConnect $armControl $driverElbow`;
+		int $connect3 = `zooAddConnect $armControl $driverBicep`;
+		
+		zooObjMenuAddCmdAll $armControl "select all arm controls" ( "select `ikHandle -q -jl #`;\nstring $effector = `ikHandle -q -ee #`;\nselect -add `listConnections -d 0 ( $effector +\".tx\" )`;\nselect -add %"+ $clavNum +" %"+ $elbowNum +" #;" );
+
+		// DJ MOD - make IK/FK switching more fool proof. (see above for details)
+		//
+		zooObjMenuAddCmdAll $armControl "switch to FK" "string $sel[] = `ls -sl`;\nselect #;\nzooAlign \"\";\nzooAlignFK \"-ikHandle #\";\nselect $sel;";
+//		zooObjMenuAddCmdAll $armControl "switch to FK for all keys" ( "string $sel[] = `ls -sl`;\nselect # %"+ $elbowNum +";\nsource zooKeyCommandsWin;\ncheckBox -e -v 1 zooKeyCommandsCheckCombine;\ncheckBox -e -v 1 zooKeyCommandsCheckSolo;\nzooSetKeyCommandsWindowCmd \"if(`getAttr %0.ikBlend` != 0) {\\n\\tsetKeyframe -at ikBlend %0;\\n}\\n&&&\\nif(`getAttr %0.ikBlend` != 0) {\\n\\tselect %0;\\n\\tzooFlags;\\n\\tzooAlign \\\"\\\";\\n\\tzooAlignFK \\\"-ikHandle %0\\\";\\n}\";" );
+//		zooObjMenuAddCmdAll $armControl "switch to IK for all keys" ( "string $sel[] = `ls -sl`;\nselect %"+ $connect1 +" %"+ $connect2 +" %"+ $connect3 +";\nsource zooKeyCommandsWin;\ncheckBox -e -v 1 zooKeyCommandsCheckCombine;\ncheckBox -e -v 1 zooKeyCommandsCheckSolo;\nzooSetKeyCommandsWindowCmd \"if(`getAttr %0.ikBlend` != 1) {\\n\\tsetKeyframe -at ikBlend %0;\\n}\\n&&&\\nif(`getAttr %0.ikBlend` != 1) {\\n\\tselect %"+ $connect1 +";\\n\\tzooFlags;\\n\\tzooAlign \\\"\\\";\\n\\tzooAlignIK \\\"-ikHandle %0 -pole %"+ $elbowNum +"\\\";\\n}\";" );
+		zooObjMenuAddCmdAll $armControl "switch to FK for all keys" ("source zooKeyCommandsWin;\nzooSwitchForAllKeys \"-mode fk -blendAttr ikBlend -ik_ctl # -selObjs %"+ $elbowNum +"\";");
+		zooObjMenuAddCmdAll $armControl "switch to IK for all keys" ("source zooKeyCommandsWin;\nzooSwitchForAllKeys \"-mode ik -blendAttr ikBlend -ik_ctl # -ik_mid %"+ $elbowNum +" -fk_end %"+ $connect1 +" -selObjs %"+ $connect2 +" %"+ $connect3 +"\";");
+
+		// DJ MOD - "toggle elbow control" RMB menu
+		zooObjMenuAddCmdAll $armControl "toggle elbow control" "{\nstring $elbowCtrl[] = `listConnections #.zooTrig1`;\nsetAttr ($elbowCtrl[0] +\".v\") (!`getAttr ($elbowCtrl[0] +\".v\")`);\n}";
+
+
+		// DJ MOD - "flip lower twist" RMB menu
+		// Note: 	lower twist misbehaves if wrist orientation aligns with elbow;
+		// 			needs to be offset 180 around the bone when manually doing the orient, before building the primitive
+		//			The "flip lower twist" mod will not fix this problem, so do the orient correctly first.
+		//
+		// Identify the joint
+		string $firstTwistJointAboveWrist[] = `listRelatives -p $wrist`;
+		string $lowerTwistOC[] = `listConnections -s 1 -d 0 ($firstTwistJointAboveWrist[0] + ".rx")`;
+		if(size($lowerTwistOC)) {
+			// add the menu
+			zooObjMenuAddCmdAll $armControl "flip lower twist" "{\nsetAttr #.lowerTwistOffset (180-`getAttr #.lowerTwistOffset`);\n}";
+
+			// hook up the attributes
+			string $loTwistOffset = "lowerTwistOffset";
+			addAttr -ln $loTwistOffset -at double -dv 0 $armControl;
+			setAttr -k 1 ( $armControl +"."+ $loTwistOffset );
+			connectAttr -f ( $armControl +"."+ $loTwistOffset ) ( $lowerTwistOC[0] +".offsetX" );
+		}
+	
+		// DJ MOD - we don't use this, so...
+		//zooObjMenuAddCmdAll $armControl "draw line of action" "zooBrandTools;\nzooCSTPrimitives;\nzooLineOfAction;\nstring $prim = `zooGetPrimFromRegistered #`;\nstring $inputs[] = `zooCSTListRegistered input $prim`;\nzooLineOfAction_multi $inputs \"\";";
+
+
+
+	//------
+	//add all zooObjMenu commands to the clavicle
+	//------
+		if( $buildclav ) {
+			int $clavConnects[] = {};
+			$clavConnects[( `size $clavConnects` )] = `zooAddConnect $clavControl $armControl`;
+			$clavConnects[( `size $clavConnects` )] = `zooAddConnect $clavControl $elbowControl`;
+			zooObjMenuAddCmdAll $clavControl "select all arm controls" ( "select `ikHandle -q -jl %"+ $clavConnects[0] +"`;\nstring $effector = `ikHandle -q -ee %"+ $clavConnects[0] +"`;\nselect -add `listConnections -d 0 ( $effector +\".tx\" )`;\nselect -add # %"+ $clavConnects[1] +" %"+ $clavConnects[0] +";" );
+			}
+
+
+	//------
+	//make the limb stretchy?
+	//------
+		string $stretchNodes[] = {};
+		if( $stretch ) $stretchNodes = `zooCSTMakeStretchy $armControl $armControl ( $optionStr +" -axis "+ (zooCSTJointDirection($wrist)) +" -prefix "+ $prefix +" -parts "+ $partsControl +" -register 1 -primitive "+ $primitive )`;
+
+	// DJ MOD - required for zooAlignIK()
+	//	create empty group under same parent and with the same rotation order as armControl
+	//
+	string $ik_alignSpace = zooGetElement_str(0,`listRelatives -pa -p $armControl`);			
+	string $loc = `group -em -p $ik_alignSpace -n ($armControl+"_loc")`;
+	setAttr ($loc+".rotateOrder") (`getAttr ($armControl+".rotateOrder")`);
+	addAttr -ln "zooLoc" -at message $armControl;
+	connectAttr -f ($loc+".message") ($armControl+".zooLoc");
+	
+	//------
+	//now brand all objects
+	//------
+		string $allSetupObjects[] = { $armControl, $elbowControl, $driverBicep, $driverElbow, $driverWrist };
+		for( $obj in $allSetupObjects ) zooBrandObject name $prefix $obj;
+		zooBrandObject arm $suffix $armControl;
+		zooBrandObject elbow $suffix $elbowControl;
+		zooBrandObject fk_bicep $suffix $driverBicep;
+		zooBrandObject fk_elbow $suffix $driverElbow;
+		zooBrandObject fk_wrist $suffix $driverWrist;
+		if( `objExists $clavControl` ) zooBrandObject clav $suffix $clavControl;
+		if( `objExists $clavControl` ) zooBrandObject name $prefix $clavControl;
+
+
+	//------
+	//create a list of controls
+	//------
+		// DJ MOD - we already built this list
+		//string $controllers[] = {};
+		//$controllers = { $armControl, $elbowControl, $driverBicep, $driverElbow, $driverWrist, $twistControl };
+		//if( `objExists $clavControl` ) $controllers = { $armControl, $elbowControl, $clavControl, $driverBicep, $driverElbow, $driverWrist, $twistControl };
+
+		// DJ MOD - "reset to rig pose" obj menu
+		for( $obj in $controllers ) {
+			if( `objExists $obj` ) {
+				sets -add $prim_qss $obj;
+				int $qssIdx = `zooAddConnect $obj $prim_qss`;
+				zooObjMenuAddCmdAll $obj "reset to rigpose" ( "zooUtils;\nstring $all[] = `zooQuerySet %"+ $qssIdx +" 0 1`;\nfor( $a in $all ) zooResetAttrs $a;" );
+				setObjMenuKillState $obj 1;
+			}
+		}
+
+	//------
+	//build the primitive record
+	//------
+		zooCSTRegisterInput $bicep $primitive;
+		zooCSTRegisterInput $elbow $primitive;
+		zooCSTRegisterInput $wrist $primitive;
+		zooCSTPrimOutputs $controls $primitive;
+		zooCSTPrimOutputs $spaceNodes1 $primitive;
+		zooCSTPrimOutputs $spaceNodes2 $primitive;
+		zooCSTPrimOutputs $stretchNodes $primitive;
+		zooCSTPrimOutputs $constraints $primitive;
+		if( `objExists $clavControl` ) zooCSTPrimOutputs { $clavControl, $clavControlOrient } $primitive;
+		zooBrandObject options ( $optionStr +" -parity "+ $parity ) $primitive;
+		zooBrandObject version "7" $primitive;
+		for( $obj in $controllers ) zooCSTRegisterControl $obj $primitive;
+		// DJ MOD
+		zooCSTPrimOutputs {$loc} $primitive;
+
+	//------
+	//cleanup - put all control objects where they should be in the outliner
+	//------
+		setAttr ( $elbowControl +".v" ) 0;
+		if( `objExists $rootControl` ) {
+			parent $elbowControlSpace $rootControl;
+			parent $ikArmSpace $rootControl;
+			}
+		if( `objExists $chestControl` ) {
+			parent $elbowControlSpace $chestControl;
+			parent $ikArmSpace $chestControl;
+			}
+		zooAttrState "-attrs t r s v -k 0 -l 1" $elbowControlSpace;
+		zooAttrState "-attrs t r s v -k 0 -l 1" $armAlign;
+		
+		// DJ MOD - avoid warning when switching to FK
+		zooAttrState "-attrs t -l 1" $driverWrist;
+
+		zooCSTUtilsRigVis -h;
+		
+		// DJ MOD - recache names after cleanup
+		for( $n=0; $n<`size $controllers`; $n++ ) {
+			$controllers[$n] = `zooRenamerFunctions replace "[0-9]+$" "" $controllers[$n]`;
+			zooCacheConnectNames($controllers[$n]);
+		}
+		// DJ MOD - dont select anything
+		//select $controllers[0];
+		select -clear;
+
+	return $controllers;
+	}
+
+
+//------
+//this proc deals with rebuilding the arm primitive
+//------
+global proc string[] zooCSTRebuildPrimArm( string $primitive ) {
+	string $prefix = `zooQueryBrand $primitive char`;
+	string $parity = "l";
+	string $version = `zooQueryBrand version $primitive`;
+	string $optionStr = `zooQueryBrand $primitive options`;
+	string $inputs[] = `zooCSTListRegistered input $primitive`;
+	string $controls[] = `zooCSTListRegistered control $primitive`;
+	string $temp[] = {};
+	int $useExisting = 1;
+
+	string $dupes[] = {};
+	if( `size $controls` ) {
+		$dupes = `duplicate -rc $controls`;  //duplicate the control objects so we can grab the original control shape nodes, to parent under the new controls created
+		parent -w $dupes;
+		}
+
+	$temp = `zooGetFlagArguments $optionStr parity`; if( `size $temp` ) $parity = $temp[0];
+	$temp = `zooGetFlagArguments $optionStr useExisting`; if( `size $temp` ) $useExisting = $temp[0];
+
+	zooCSTDeletePrimitive $primitive;
+	string $newControls[] = `zooCSTBuildPrimArm $prefix $parity $inputs[0] $inputs[1] $inputs[2] $optionStr`;
+
+	//parent the shape nodes of the original controls to the transforms of the new controls
+	if( $useExisting ) for( $n=0; $n<`size $newControls`; $n++ ) zooReplaceShape $dupes[$n] $newControls[$n] 0;
+
+	delete $dupes;
+	return $newControls;
+	}
+
+
+/*
+builds a generic IK/FK arm rig
+-------
+
+$prefix - the character prefix used to identify the character
+$parity - which side is the arm on?  l (left) or r (right)
+$bicep - the bicep, upper arm, or humerous
+$elbow - the elbow or forearm.  ie where the limb bends
+$wrist - the wrist/hand joint
+$optionStr - standard option string
+
+option flags
+-------
+-root [string]			use this flag to explicitly set which object to use as the root - ie the parent of this primitive
+-chest [string]			use this flag to explicitly set which object to use as the chest
+-head [string]			use this flag to explicitly set which object to use as the head
+-buildclav [int]		if you don't want the clavicle built, turn this off
+-colour [int]				specify a colour index to change the colour for the control object's wireframe
+-stretch [int]			turn this flag on if you want a stretchy arm
+-parents [string]		use this to specify an additional list of parents for the dynamic parenting on all spine controls
+-scale [float]			scale factor to apply to the control (purely a visual thing - scale is frozen).  default: 1
+
+NOTE: the script will automatically discover any twist joints that lie between parts of the arm
+*/
+
+
+//zoo.end

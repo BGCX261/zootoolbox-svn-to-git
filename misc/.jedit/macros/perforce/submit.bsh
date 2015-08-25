@@ -1,0 +1,71 @@
+void submit() {
+	user = "hmckenzie";
+	computername = "wsan04";
+	comments = Macros.input(view, "submit comments");
+	changelist = "c:/p4_submit_from_jedit.txt";
+	p4Path = buffer.getPath().replace("\\","/");
+
+	if(comments == null) return;
+
+	//write the changelist file
+	newBuf = jEdit.newFile(view);
+	textArea.setSelectedText("Change:");
+	textArea.insertTabAndIndent();
+	textArea.setSelectedText("new");
+	textArea.insertEnterAndIndent();
+	textArea.insertEnterAndIndent();
+
+	textArea.setSelectedText("Client:");
+	textArea.insertTabAndIndent();
+	textArea.setSelectedText(computername);
+	textArea.insertEnterAndIndent();
+	textArea.insertEnterAndIndent();
+
+	textArea.setSelectedText("User:");
+	textArea.insertTabAndIndent();
+	textArea.setSelectedText(user);
+	textArea.insertEnterAndIndent();
+	textArea.insertEnterAndIndent();
+
+	textArea.setSelectedText("Status:");
+	textArea.insertTabAndIndent();
+	textArea.setSelectedText("new");
+	textArea.insertEnterAndIndent();
+	textArea.insertEnterAndIndent();
+
+	textArea.setSelectedText("Description:");
+	textArea.insertTabAndIndent();
+	textArea.setSelectedText(comments);
+	textArea.insertEnterAndIndent();
+	textArea.insertEnterAndIndent();
+
+	textArea.setSelectedText("Files:");
+	textArea.insertEnterAndIndent();
+	textArea.insertTabAndIndent();
+	textArea.setSelectedText(p4Path);
+	textArea.insertTabAndIndent();
+	textArea.setSelectedText("# edit");
+
+	//make sure the paths are p4 paths
+	SearchAndReplace.setSearchString("d:/studiooz");
+	SearchAndReplace.setReplaceString("/");
+	SearchAndReplace.setBeanShellReplace(false);
+	SearchAndReplace.setIgnoreCase(true);
+	SearchAndReplace.setRegexp(false);
+	SearchAndReplace.setSearchFileSet(new CurrentBufferSet());
+	SearchAndReplace.replaceAll(view);
+
+	textArea.insertEnterAndIndent();
+
+	//now save the file, close it
+	newBuf.save(view,changelist);
+	jEdit.closeBuffer(view,newBuf);
+
+	//and lastly, do the submission
+	cmd = "p4 submit -i <c:\\p4_submit_from_jedit.txt";
+	process = Runtime.getRuntime().exec(cmd);
+	process.waitFor();
+	view.getBuffer().checkFileStatus(view);
+	}
+
+submit();

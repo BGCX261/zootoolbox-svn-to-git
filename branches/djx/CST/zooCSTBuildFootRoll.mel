@@ -1,0 +1,176 @@
+zooFlags;
+
+// zooCSTBuildFootRoll.mel
+//
+//	Creates a heel-ball-toe foot roll system.
+//
+//	Attributes added to the control:
+//		.roll 			The degree of roll
+//		.ballBreaker 	Determins whether the ball will bend as the foot rolls forward
+//						If .ballBreaker=0 then the roll is simply from heel to toe
+//						If .ballBreaker=1 then we roll from the heel to the ball
+//		.ballBreak0		When the ball rotation reaches the angle specified in .ballBreak0, the toe roll begins
+//		.ballBreak1		As toe rolls forward, ball angle will reduce to zero by the time toe rotation reaches the angle specified in .ballBreak1
+//		.heelMin		The heel angle when .roll is at its minimum value
+//		.toeMax			The toe angle when .roll is at its maximum value
+//
+//	Creation Options:
+//		-rollMin #		float	.roll min
+//		-rollMax #		float	.roll max
+//		-roll0	#		float	.roll zero
+//		-ballBreak0	#	float	.ballBreak0 initial value
+//		-ballBreak1	#	float	.ballBreak1 initial value
+//		-heelMin #		float	.heelMin initial value
+//		-toeMax #		float	.toeMax initial value
+//		-heelRollAxis #	string	heel rotation axis
+//		-ballRollAxis #	string	ball rotation axis
+//		-toeRollAxis #	string	toe rotation axis
+//		-sanityCheck #	int		check and fix insane values (1 = check, 0 = no check, default = 1)
+//
+//	Suggested values:
+//		.toeMax should be roughly equal to .ballBreak0 + .ballBreak1 which should be positive values.
+//		The defaults should give reasonable results, but may need tweaking for different shaped feet.
+//
+//	.roll & .ballBreaker are created as keyable attributes, the rest are hidden.
+//
+//	Example 1 using defaults:
+//		zooCSTBuildFootRoll xx heel1 ball1 toe1 "";
+//
+//	Example 2 showing the use of the option string:
+//		zooCSTBuildFootRoll xx heel1 ball1 toe1 "-rollMin -15 -rollMax 15 -toeMax 90 -ballBreak0 60 -ballBreak1 90 -toeRollAxis y";
+//
+//	NOTE: The option string is required even if you leave it blank. And it must be a single string even if you include several option flags.
+//
+//	By default a sanity check is performed on the initial attributes and they will be adjusted if they look unusual.
+//	However this check makes several assumptions about the rig, that may or may not be correct,
+//	so an option is provided to let you turn off the check if you wish. (-sanityCheck 0).
+//
+
+
+global proc zooCSTBuildFootRoll(string $ctrl, string $heel, string $ball, string $toe, string $optionStr) {
+
+		// defaults
+		float $ballBreak0 = 60.0;
+		float $ballBreak1 = 120.0;
+		float $heelMin = -90.0;
+		float $toeMax = 120.0;
+		
+		float $roll0 = 0.0;
+		float $rollMin = -10.0;
+		float $rollMax = 10.0;
+		
+		string $heelRollAxis = "z";
+		string $ballRollAxis = "z";
+		string $toeRollAxis = "z";
+
+		// options
+		string $optionTemp[] = {};
+		$optionTemp = `zooGetFlagArguments $optionStr ballBreak0`; if( `size $optionTemp` ) $ballBreak0 = $optionTemp[0];
+		$optionTemp = `zooGetFlagArguments $optionStr ballBreak1`; if( `size $optionTemp` ) $ballBreak1 = $optionTemp[0];
+		$optionTemp = `zooGetFlagArguments $optionStr heelMin`; if( `size $optionTemp` ) $heelMin = $optionTemp[0];
+		$optionTemp = `zooGetFlagArguments $optionStr toeMax`; if( `size $optionTemp` ) $toeMax = $optionTemp[0];
+
+		$optionTemp = `zooGetFlagArguments $optionStr roll0`; if( `size $optionTemp` ) $roll0 = $optionTemp[0];
+		$optionTemp = `zooGetFlagArguments $optionStr rollMin`; if( `size $optionTemp` ) $rollMin = $optionTemp[0];
+		$optionTemp = `zooGetFlagArguments $optionStr rollMax`; if( `size $optionTemp` ) $rollMax = $optionTemp[0];
+
+		$optionTemp = `zooGetFlagArguments $optionStr heelRollAxis`; if( `size $optionTemp` ) $heelRollAxis = $optionTemp[0];
+		$optionTemp = `zooGetFlagArguments $optionStr ballRollAxis`; if( `size $optionTemp` ) $ballRollAxis = $optionTemp[0];
+		$optionTemp = `zooGetFlagArguments $optionStr toeRollAxis`; if( `size $optionTemp` ) $toeRollAxis = $optionTemp[0];
+		
+		// options sanity check
+		int $sanityCheck = 1;
+		$optionTemp = `zooGetFlagArguments $optionStr sanityCheck`; if( `size $optionTemp` ) $sanityCheck = $optionTemp[0];
+		if($sanityCheck) {
+			if($heelMin > 0) $heelMin = 0;								// assumes heel uses a negative rotation
+			if($ballBreak0 < 0) $ballBreak0 = 0;						// assumes ball-toe uses a positive rotation, and results in ball roll being skipped
+			if($toeMax <= $ballBreak0) $toeMax = $ballBreak0+1;			// toeMax must be larger than ballBreak0, but this 1 degree seperation will still pop
+			if($ballBreak1 > $toeMax) $ballBreak1 = $toeMax;			// ballBreak1 must no larger than toeMax. By default it is equal to toeMax, and that is probably a good place to leave it.
+			if($ballBreak1 <= $ballBreak0) $ballBreak1 = $ballBreak0+1;	// ballBreak1 must be larger than ballBreak0
+		}
+		else warning "zooCSTBuildFootRoll: sanityCheck was disabled. If your foot looks messed up, try redoing it with \"-sanityCheck 1\", or change the ballBreak attributes on the foot control.";
+		
+		
+		// add attributes to ctrl
+		if(!`objExists ($ctrl + ".roll")`) { addAttr -k 1 -ln "roll" -at double  -min $rollMin -max $rollMax -dv $roll0 $ctrl; }
+		if(!`objExists ($ctrl + ".ballBreaker")`) { addAttr -k 1 -ln "ballBreaker" -at double  -min 0 -max 1 -dv 1 $ctrl; }
+		if(!`objExists ($ctrl + ".ballBreak0")`) { addAttr -ln "ballBreak0" -at double -dv $ballBreak0 $ctrl; }
+		if(!`objExists ($ctrl + ".ballBreak1")`) { addAttr -ln "ballBreak1" -at double -dv $ballBreak1 $ctrl; }
+		if(!`objExists ($ctrl + ".heelMin")`) { addAttr -ln "heelMin" -at double -dv $heelMin $ctrl; }
+		if(!`objExists ($ctrl + ".toeMax")`) { addAttr -ln "toeMax" -at double -dv $toeMax $ctrl; }
+		
+		// build utilities	
+		string $toeReturnMult = `shadingNode -asUtility -n ($ctrl +"_"+ $toe +"_return_mult") multiplyDivide`;
+		connectAttr -f ($ctrl +".ballBreak0") ($toeReturnMult +".input1X");
+		connectAttr -f ($ctrl + ".ballBreaker") ($toeReturnMult +".input2X");
+
+		string $heelClamp = `shadingNode -asUtility -n ($ctrl +"_"+ $heel +"_clamp") clamp`;
+		setAttr ($heelClamp +".minR") $rollMin;
+		setAttr ($heelClamp +".maxR") $roll0;
+		connectAttr -f ($ctrl + ".roll") ($heelClamp +".inputR");
+		
+		string $rollRange = `shadingNode -asUtility -n ($ctrl +"_roll_range") setRange`;
+		connectAttr -f ($heelClamp +".outputR") ($rollRange +".valueX");
+		connectAttr -f ($ctrl + ".heelMin") ($rollRange +".minX");
+		setAttr ($rollRange +".oldMinX") $rollMin;
+		setAttr ($rollRange +".oldMaxX") $roll0;
+
+		string $rollClamp = `shadingNode -asUtility -n ($ctrl +"_roll_clamp") clamp`;
+		setAttr ($rollClamp +".minG") $roll0;
+		setAttr ($rollClamp +".maxG") $rollMax;
+		connectAttr -f ($ctrl + ".roll") ($rollClamp +".inputG");
+		
+		connectAttr -f ($rollClamp +".outputG") ($rollRange +".valueY");
+		connectAttr -f ($ctrl + ".toeMax") ($rollRange +".maxY");
+		setAttr ($rollRange +".oldMinY") $roll0;
+		setAttr ($rollRange +".oldMaxY") $rollMax;
+		
+		string $bb0Clamp = `shadingNode -asUtility -n ($ctrl +"_bb0_clamp") clamp`;
+		connectAttr -f ($rollRange +".outValueY") ($bb0Clamp +".inputR");
+		connectAttr -f ($toeReturnMult + ".outputX") ($bb0Clamp +".maxR");
+		
+		string $bbNormalizeRange = `shadingNode -asUtility -n ($ctrl +"_bbNormalize_range") setRange`;
+		connectAttr -f ($bb0Clamp +".outputR") ($bbNormalizeRange +".valueX");
+		setAttr ($bbNormalizeRange +".maxX") 1;
+		connectAttr -f ($toeReturnMult + ".outputX") ($bbNormalizeRange +".oldMaxX");
+		
+		string $bb1Clamp = `shadingNode -asUtility -n ($ctrl +"_bb1_clamp") clamp`;
+		connectAttr -f ($rollRange +".outValueY") ($bb1Clamp +".inputR");
+		connectAttr -f ($toeReturnMult + ".outputX") ($bb1Clamp +".minR");
+		connectAttr -f ($ctrl + ".ballBreak1") ($bb1Clamp +".maxR");
+		connectAttr -f ($bb1Clamp +".outputR") ($bbNormalizeRange +".valueY");
+		setAttr ($bbNormalizeRange +".maxY") 1;
+		connectAttr -f ($toeReturnMult + ".outputX") ($bbNormalizeRange +".oldMinY");
+		connectAttr -f ($ctrl + ".ballBreak1") ($bbNormalizeRange +".oldMaxY");
+
+		string $bbSubtract = `shadingNode -asUtility -n ($ctrl +"_bbSubtract") plusMinusAverage`;
+		setAttr ($bbSubtract +".operation") 2;	// operation = subtract
+		connectAttr -f ($bbNormalizeRange + ".outValueX") ($bbSubtract +".input1D[0]");
+		connectAttr -f ($bbNormalizeRange + ".outValueY") ($bbSubtract +".input1D[1]");
+		
+		string $ballMult = `shadingNode -asUtility -n ($ctrl +"_"+ $ball +"_mult") multiplyDivide`;
+		connectAttr -f ($bbSubtract + ".output1D") ($ballMult +".input1X");
+		connectAttr -f ($toeReturnMult + ".outputX") ($ballMult +".input2X");
+
+		string $ballReturnMult = `shadingNode -asUtility -n ($ctrl +"_"+ $ball +"_return_mult") multiplyDivide`;
+		connectAttr -f ($ballMult + ".outputX") ($ballReturnMult +".input1X");
+		connectAttr -f ($ctrl + ".ballBreaker") ($ballReturnMult +".input2X");
+
+		string $toeClamp = `shadingNode -asUtility -n ($ctrl +"_toe_clamp") clamp`;
+		connectAttr -f ($rollRange + ".outValueY") ($toeClamp +".inputR");
+		connectAttr -f ($toeReturnMult + ".outputX") ($toeClamp +".minR");
+		connectAttr -f ($ctrl + ".toeMax") ($toeClamp +".maxR");
+		
+		string $toeRange = `shadingNode -asUtility -n ($ctrl +"_toe_range") setRange`;
+		connectAttr -f ($toeClamp +".outputR") ($toeRange +".valueX");
+		connectAttr -f ($ctrl + ".toeMax") ($toeRange +".maxX");
+		connectAttr -f ($toeReturnMult + ".outputX") ($toeRange +".oldMinX");
+		connectAttr -f ($ctrl + ".toeMax") ($toeRange +".oldMaxX");
+		
+		// hook up rotations
+		connectAttr -f ($rollRange +".outValueX") ($heel +".r"+ $heelRollAxis);
+		//connectAttr -f ($ballReturnMult +".outputX") ($ball +".r"+ $ballRollAxis);
+		connectAttr -f ($ballMult +".outputX") ($ball +".r"+ $ballRollAxis);
+		connectAttr -f ($toeRange + ".outValueX") ($toe +".r"+ $toeRollAxis);
+		
+}

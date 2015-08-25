@@ -1,0 +1,321 @@
+/*
+ * Sort.bsh - a BeanShell macro script for sorting 
+ * lines in a buffer.  If there are selection, the lines in the selection
+ * will be sorted, otherwise the whole buffer will be sorted. 
+ * You can compare the lines from any column (start from 1). 
+ *
+ * Copyright (C) 2006 Programus, programus@hotmail.com
+ *
+ * :mode=beanshell:tabSize=4:indentSize=4:maxLineLen=0:noTabs=false:
+ * :indentOnTab=true:indentOnEnter=true:folding=explicit:collapseFolds=1:
+ *
+ * $Id: Sort.bsh,v 1.0 2006/04/17 18:05:00 $
+ */
+
+// the sort order. 
+boolean asc = true; 
+// column sort from. 
+int sortFrom = 1; 
+// case sensitive? 
+boolean caseSensitive = true; 
+// remove duplicate rows? 
+boolean removeDup = false; 
+
+final String ORDER_ASC = "asc"; 
+final String ORDER_DESC = "desc"; 
+final String CASE_SENSITIVE = "case"; 
+final String RM_DUP = "dup"; 
+final String ACTION_SORT = "sort"; 
+final String ACTION_CANCEL = "cancel"; 
+
+void showDialog()
+{
+	// start from col spinner. 
+	SpinnerNumberModel spinnerModel = new SpinnerNumberModel(); 
+	spinnerModel.setMinimum(new Integer(1)); 
+	spinnerModel.setValue(new Integer(sortFrom)); 
+	JSpinner spinner = new JSpinner(spinnerModel); 
+	Dimension size = spinner.getPreferredSize(); 
+	size.width <<= 1; 
+	spinner.setPreferredSize(size); 
+	
+	// Ascending or Descending radio buttons
+	JRadioButton ascButton = new JRadioButton("Ascending"); 
+	ascButton.setMnemonic(KeyEvent.VK_A); 
+	ascButton.setActionCommand(ORDER_ASC); 
+	ascButton.setSelected(asc); 
+	
+	JRadioButton descButton = new JRadioButton("Descending"); 
+	descButton.setMnemonic(KeyEvent.VK_D); 
+	descButton.setActionCommand(ORDER_DESC); 
+	descButton.setSelected(!asc); 
+	
+	ButtonGroup orderGroup = new ButtonGroup(); 
+	orderGroup.add(ascButton); 
+	orderGroup.add(descButton); 
+	
+	ActionListener orderListener = new ActionListener() 
+	{
+		public void actionPerformed(ActionEvent e) 
+		{
+			asc = ORDER_ASC.equals(e.getActionCommand()); 
+		}
+	}; 
+	
+	ascButton.addActionListener(orderListener); 
+	descButton.addActionListener(orderListener); 
+	
+	// Case Sensitive checkbox
+	JCheckBox caseButton = new JCheckBox("Case Sensitive"); 
+	caseButton.setMnemonic(KeyEvent.VK_C); 
+	caseButton.setActionCommand(CASE_SENSITIVE); 
+	caseButton.setSelected(caseSensitive); 
+	caseButton.addItemListener(new ItemListener() 
+	{
+		public void itemStateChanged(ItemEvent e)
+		{
+			caseSensitive = (e.getStateChange() == ItemEvent.SELECTED); 
+		}
+	}); 
+	
+	// remove duplicate checkbox
+	JCheckBox dupButton = new JCheckBox("Remove Duplicate Lines"); 
+	dupButton.setMnemonic(KeyEvent.VK_R); 
+	dupButton.setActionCommand(RM_DUP); 
+	dupButton.setSelected(removeDup); 
+	
+	dupButton.addItemListener(new ItemListener() 
+	{
+		public void itemStateChanged(ItemEvent e)
+		{
+			removeDup = (e.getStateChange() == ItemEvent.SELECTED); 
+		}
+	}); 
+	
+	// create button bar. 
+	JButton sortButton = new JButton("Sort"); 
+	sortButton.setMnemonic(KeyEvent.VK_S); 
+	sortButton.setActionCommand(ACTION_SORT); 
+	JButton cancelButton = new JButton("Cancel"); 
+	cancelButton.setActionCommand(ACTION_CANCEL); 
+	
+	JPanel buttonPanel = new JPanel();
+	buttonPanel.setLayout(new BorderLayout());
+	buttonPanel.add(sortButton, BorderLayout.WEST);
+	buttonPanel.add(cancelButton, BorderLayout.EAST);
+	
+	JDialog dialog = new JDialog(view, "Sort", false); 
+	boolean ret = false; 
+	
+	sortButton.addActionListener(this); 
+	cancelButton.addActionListener(this); 
+	
+	actionPerformed(ActionEvent e)
+	{
+		this.dialog.dispose();
+		if (ACTION_SORT.equals(e.getActionCommand())) 
+		{
+			sortFrom = ((Integer)spinnerModel.getValue()).intValue(); 
+			sort(); 
+		}
+		return;
+	}
+	
+	// create input panel. 
+	JPanel inputPanel = new JPanel(); 
+	inputPanel.setLayout(new GridLayout(4, 1)); 
+	JPanel panel = new JPanel(); 
+	panel.setBorder(BorderFactory.createTitledBorder("Order")); 
+	panel.setLayout(new GridLayout(1, 2)); 
+	panel.add(ascButton); 
+	panel.add(descButton); 
+	inputPanel.add(panel); 
+	
+	panel = new JPanel(); 
+	JLabel colLabel = new JLabel("Starting column:"); 
+	colLabel.setLabelFor(spinner); 
+	panel.setLayout(new FlowLayout(FlowLayout.LEFT)); 
+	panel.add(colLabel); 
+	panel.add(spinner); 
+	inputPanel.add(panel); 
+	
+	panel = new JPanel(); 
+	panel.setLayout(new GridLayout(2, 1)); 
+	panel.add(caseButton); 
+	panel.add(dupButton); 
+	
+	inputPanel.add(panel); 
+	
+	// create dialog. 
+	JPanel mainPanel = new JPanel(); 
+	mainPanel.setLayout(new BorderLayout()); 
+	mainPanel.add(inputPanel, BorderLayout.CENTER); 
+	mainPanel.add(buttonPanel, BorderLayout.SOUTH); 
+	dialog.setContentPane(mainPanel); 
+	
+	dialog.pack();
+	dialog.setLocationRelativeTo(view);
+	dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+	dialog.setVisible(true); 
+}
+
+void sort()
+{
+	Buffer buffer = textArea.getBuffer();
+	Selection[] selections = textArea.getSelection();
+	
+	// doesn't work with rectangular selections and multi-selections, check for them up-front
+	if (selections.length > 1)
+	{
+		Macros.error(view, "Sorry, this macro doesn't work with more than one Selection. ");
+		return;
+	}
+	else if (selections.length == 1 && selections[0] instanceof Selection.Rect)
+	{
+		Macros.error(view, "Sorry, this macro doesn't work with Rectangular Selections.");
+		return; 
+	}
+	
+	// get the selection. 
+	Selection selection = selections.length > 0 ? selections[0] : null; 
+	// a map for sorting
+	Map map = new TreeMap(); 
+	// a map to store the duplicate rows. 
+	Map dupMap = new HashMap(); 
+	
+	int startLine = 0; 
+	int endLine = 0; 
+	if (selections.length == 0)
+	{
+		startLine = 0; 
+		endLine = buffer.getLineCount() - 1; 
+	}
+	else 
+	{
+		startLine = selection.getStartLine(); 
+		endLine = selection.getEndLine(); 
+	}
+	
+	// put all lines to sort into maps. 
+	for (int i = startLine; i <= endLine; i++) 
+	{
+		String line = buffer.getLineText(i); 
+		putLineIntoMap(map, line, dupMap); 
+	}
+	
+	// put sorted lines into a StringBuffer. 
+	StringBuffer sb = new StringBuffer(); 
+	boolean appended = false; 
+	for (Iterator i = map.values().iterator(); i.hasNext(); )
+	{
+		String allLines = (String) i.next(); 
+		String[] lines = allLines.split("\n"); 
+		String line = lines.length > 0 ? lines[0] : ""; 
+		if (removeDup)
+		{
+			if (!appended)
+			{
+				if (asc)
+					sb.append(line);
+				else
+					sb.insert(0, line); 
+				appended = true; 
+			}
+			else
+			{
+				if (asc)
+					sb.append('\n').append(line);
+				else
+					sb.insert(0, '\n').insert(0, line); 
+			}
+		}
+		else 
+		{
+			int dupTime = ((Integer) dupMap.get(caseSensitive ? line : line.toLowerCase())).intValue(); 
+			for (int j = 0; j < dupTime; j++) 
+			{
+				String s = lines.length > j ? lines[j] : ""; 
+				if (!appended)
+				{
+					if (asc)
+						sb.append(s);
+					else
+						sb.insert(0, s); 
+					appended = true; 
+				}
+				else
+				{
+					if (asc)
+						sb.append('\n').append(s);
+					else
+						sb.insert(0, '\n').insert(0, s); 
+				}
+			}
+		}
+	}
+
+	buffer.beginCompoundEdit();
+	
+	int startOffset = buffer.getLineStartOffset(startLine);
+	int endOffset = buffer.getLineEndOffset(endLine); 
+	
+	buffer.remove(startOffset, endOffset - startOffset - 1);
+	buffer.insert(startOffset, sb.toString());
+	
+	buffer.endCompoundEdit();
+}
+
+void putLineIntoMap(Map map, String line, Map dupMap)
+{
+	// calculate key. 
+	// key is the string to compare, it is created by moving the substring from sortFrom index to front. 
+	String key = (sortFrom <= line.length()) ? line.substring(sortFrom - 1) + line.substring(0, sortFrom - 1) : ""; 
+	if (!caseSensitive)
+		key = key.toLowerCase(); 
+	
+	increaseDup(dupMap, caseSensitive ? line : line.toLowerCase()); 
+	
+	if (!map.containsKey(key))
+	{
+		map.put(key, line); 
+	}
+	else 
+	{
+		// case insensitive duplicate lines. 
+		// combine them by "\n". 
+		String string = (String) map.get(key); 
+		string += "\n" + line; 
+		map.put(key, string); 
+	}
+}
+
+void increaseDup(Map dupMap, String line)
+{
+	if (dupMap.containsKey(line)) 
+	{
+		int i = ((Integer)dupMap.get(line)).intValue(); 
+		dupMap.put(line, new Integer(++i)); 
+	}
+	else 
+	{
+		dupMap.put(line, new Integer(1)); 
+	}
+}
+
+if(buffer.isReadOnly())
+	Macros.error(view, "Buffer is read-only.");
+else
+	showDialog();
+
+/*
+	Macro index entry (in DocBook XML)
+
+<listitem>
+	<para><filename>Sort.bsh</filename></para>
+	<abstract><para>
+		Sorts the selected lines or the entire buffer if no
+		lines are selected.  Does not support Rectangular
+		Selections and Multi Selections.
+	</para></abstract>
+</listitem>
+*/

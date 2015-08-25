@@ -1,0 +1,51 @@
+zooFlags;
+
+// zooKeyUtils.mel (DJ MOD)
+//	An assortment of useful keyframe relates utilities
+//
+global proc zooKeyUtils() {
+	return;
+}
+
+// DJ MOD
+// create, set or query zooJumpPrevention
+//
+global proc int zooJumpPreventionState( int $state ) {
+
+	int $newState = `optionVar -ex zooJumpPrevention` ? `optionVar -q zooJumpPrevention` : 0;
+	if( $state == -1 ) return $newState;
+	optionVar -iv zooJumpPrevention $state;
+	return $state;
+}
+	
+// DJ MOD
+//
+global proc zooInsertKeyframe(float $t, string $inTanType, string $outTanType, string $obj, string $optionStr) {
+	//
+	// Problem:
+	//	The standard `setKeyframe -insert` attempts to preserve the shape of the curve
+	// 	but in doing so it sets custom tangent values which dont adjust themselves if adjacent keyframe values are changed.
+	//
+	// Solution:
+	//	zooInsertKeyframe finds the value at the insert time and then explicitly creates a keyframe with optionally specified tangents.
+	//	Curve shape may change a little, but will be easier to work with.
+	//
+	//	-att 	attribute name(s)
+	//
+	string $att[] = {"tx","ty","tz", "rx", "ry", "rz"};	// default to translate & rotate only
+
+	$temp = `zooGetFlagArguments $optionStr att`; if( `size $temp` ) $att = $temp;
+	
+	string $ittStr = ($inTanType == "") ? "" : ("-itt \""+$inTanType+"\"");
+	string $ottStr = ($inTanType == "") ? "" : ("-ott \""+$outTanType+"\"");
+	
+	string $keyable[] = `listAttr -keyable -unlocked -sn $obj`;
+
+	for($a in $att) {
+		if(stringArrayContains($a, $keyable)) {
+			float $val = `getAttr -t $t ($obj +"."+ $a)`;
+			eval("setKeyframe -t "+$t+" "+$ittStr+" "+$ottStr+" -at "+$a+" -v "+$val+" "+$obj);
+			keyTangent -lock off -t $t -at $a $obj;
+		}
+	}
+}

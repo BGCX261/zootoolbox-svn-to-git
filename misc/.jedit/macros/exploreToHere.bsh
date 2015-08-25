@@ -1,0 +1,7 @@
+void exploreToHere() {
+	filepath = buffer.file.toString();
+	cmd = "explorer /n,/e,/select,\""+ filepath +"\"";
+	process = Runtime.getRuntime().exec(cmd);
+	}
+
+exploreToHere();

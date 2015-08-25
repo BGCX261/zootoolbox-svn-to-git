@@ -1,0 +1,13 @@
+#summary One-sentence summary of this page.
+
+= Introduction =
+
+welcome to the zooToolBox project.
+
+
+= Details =
+
+  * so just a quick note about the repository.  its pretty standard setup.  releases get tagged with the release code (year_mon_x).  4 letter year, 3 letter month and the x is a release counter.  sub releases within a month (for critical fixes or whatnot) will increment this digit.
+
+  * the only other thing to note is the misc top level directory.  I've got my jedit syntax definitions/prefs files in here.  lets me keep my jedit environment syncronised between machines.  so if you find that useful, feel free to use it.  the jedit mel syntax file has a lot of commonly used zoo helper procs in there.  most of the zooArrays procedures are in there, as are zooUtils, zooStrUtils and a few other commonly used scripts.
+

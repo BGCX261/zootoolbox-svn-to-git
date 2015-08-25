@@ -1,0 +1,9 @@
+void add() {
+	cmd = "p4 add \""+ buffer.getPath() +"\"";
+	process = Runtime.getRuntime().exec(cmd);
+	process.waitFor();
+	view.getBuffer().checkFileStatus(view);
+	buffer.reload(view);
+	}
+
+add();

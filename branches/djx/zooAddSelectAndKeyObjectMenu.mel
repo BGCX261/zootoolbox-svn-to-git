@@ -1,0 +1,55 @@
+zooObjMenuUtils;
+zooFlags;
+
+// zooAddSelectAndKeyObjectMenu.mel
+//
+//	Adds a common set of object menus to perform selection and keying functions
+//
+//	flags:
+//		-both			Add menus for both Left/Right pairs (eg arms and legs)
+//		-useQSSName		Use the actual qss name instead of the generic "QSS" and "qss ALL" strings
+
+global proc zooAddSelectAndKeyObjectMenu( string $prefix, string $qssName, string $cmdObjects[], string $optionStr ) {
+
+	// generic or specific name to be used in the rmb-menu
+	string $QSS = (`zooIsFlag $optionStr "useQSSName"`) ? $qssName : "QSS";
+	string $qss = ($QSS == "QSS") ? `tolower $QSS` : $QSS;
+
+	// -both rmb-menu setup
+	//	Simply assumes parity is specified by either the _L or _R suffix and that if one exists then they both do
+	//
+	string $parity0;
+	string $parity1;
+	int $both = `zooIsFlag $optionStr "both"`;
+	if($both) {
+		$parity0 = `match "_[LR]$" $qssName`;
+		$parity1 = ($parity0 == "_L") ? "_R" : "_L";
+	}
+	
+	for( $n=0; $n<`size $cmdObjects`; $n++ ) {
+		if(!`objExists $cmdObjects[$n]`) continue;
+	
+		// select qss
+		zooObjMenuAddCmdAll($cmdObjects[$n], ("select "+ $QSS), "select `listConnections -type objectSet #`;");
+
+		if($both)
+			// select qss both
+			zooObjMenuAddCmdAll($cmdObjects[$n], ("select "+ $qss +" BOTH"), "string $sets[] = `listConnections -type objectSet #`; select $sets; for($s in $sets) select -add `substitute \""+ $parity0 +"$\" $s \""+ $parity1 +"\"`;");
+
+		// select qss all
+		zooObjMenuAddCmdAll($cmdObjects[$n], ("select "+ $qss +" ALL"), "string $sel[] = `ls -sl`; string $sets[] = `listConnections -type objectSet #`; if( `size $sets` ) $sets = `listConnections -type objectSet $sets`; select $sets;");
+
+		// key object
+		zooObjMenuAddCmdAll($cmdObjects[$n], "key", "string $sel[] = `ls -sl`; select -r #; djSetKeyframe 1 1; select -r $sel;");
+
+		// key qss
+		zooObjMenuAddCmdAll($cmdObjects[$n], ("key "+ $QSS), "string $sel[] = `ls -sl`; select `listConnections -type objectSet #`; djSetKeyframe 1 1; select -r $sel;");
+
+		if($both)
+			// key qss both
+			zooObjMenuAddCmdAll($cmdObjects[$n], ("key "+ $qss +" BOTH"), "string $sel[] = `ls -sl`; string $sets[] = `listConnections -type objectSet #`; select $sets; for($s in $sets) select -add `substitute \""+ $parity0 +"$\" $s \""+ $parity1 +"\"`; djSetKeyframe 1 1; select -r $sel;");
+
+		// key qss all
+		zooObjMenuAddCmdAll($cmdObjects[$n], ("key "+ $qss +" ALL"), "string $sel[] = `ls -sl`; string $sets[] = `listConnections -type objectSet #`; if( `size $sets` ) $sets = `listConnections -type objectSet $sets`; select $sets; djSetKeyframe 1 1; select -r $sel;");		
+	}
+}

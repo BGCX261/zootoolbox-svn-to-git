@@ -1,0 +1,256 @@
+<?xml version="1.0"?>
+
+<!DOCTYPE MODE SYSTEM "xmode.dtd">
+
+<MODE>
+	<PROPS>
+		<PROPERTY NAME="commentStart" VALUE="/*" />
+		<PROPERTY NAME="commentEnd" VALUE="*/" />
+		<PROPERTY NAME="lineComment" VALUE="//" />
+		<PROPERTY NAME="wordBreakChars" VALUE=",+-=&lt;&gt;/?^&amp;*" />
+
+		<!-- Auto indent -->
+		<PROPERTY NAME="indentOpenBrackets" VALUE="{" />
+		<PROPERTY NAME="indentCloseBrackets" VALUE="}" />
+		<PROPERTY NAME="indentNextLine"
+			VALUE="\{$" />
+		<PROPERTY NAME="doubleBracketIndent" VALUE="false" />
+		<PROPERTY NAME="lineUpClosingBracket" VALUE="false" />
+	</PROPS>
+	<RULES ESCAPE="\"
+		IGNORE_CASE="FALSE"
+		HIGHLIGHT_DIGITS="TRUE"
+		DIGIT_RE="(0x[[:xdigit:]]+[lL]?|[[:digit:]]+(e[[:digit:]]*)?[lLdDfF]?)">
+
+		<!-- whitespace: (space and tab) -->
+		<WHITESPACE> </WHITESPACE>
+		<WHITESPACE>	</WHITESPACE>
+
+		<!-- C style comment -->
+		<SPAN TYPE="COMMENT1">
+			<BEGIN>/*</BEGIN>
+			<END>*/</END>
+		</SPAN>
+
+                <!-- "- originally LITERAL1 just change it back if you don't like it -->
+		<SPAN TYPE="MARKUP" NO_LINE_BREAK="TRUE">
+			<BEGIN>"</BEGIN>
+			<END>"</END>
+		</SPAN>
+		<SPAN TYPE="LITERAL1" NO_LINE_BREAK="TRUE">
+			<BEGIN>'</BEGIN>
+			<END>'</END>
+		</SPAN>
+
+		<EOL_SPAN TYPE="COMMENT1">//</EOL_SPAN>
+		<SEQ TYPE="OPERATOR">=</SEQ>
+		<SEQ TYPE="OPERATOR">!</SEQ>
+		<SEQ TYPE="OPERATOR">&gt;=</SEQ>
+		<SEQ TYPE="OPERATOR">&lt;=</SEQ>
+		<SEQ TYPE="OPERATOR">+</SEQ>
+		<SEQ TYPE="OPERATOR">-</SEQ>
+		<SEQ TYPE="OPERATOR">/</SEQ>
+
+		<SEQ TYPE="OPERATOR">*</SEQ>
+		<SEQ TYPE="OPERATOR">&gt;</SEQ>
+		<SEQ TYPE="OPERATOR">&lt;</SEQ>
+		<SEQ TYPE="OPERATOR">&amp;</SEQ>
+		<SEQ TYPE="OPERATOR">|</SEQ>
+		<SEQ TYPE="OPERATOR">^</SEQ>
+		<SEQ TYPE="OPERATOR">~</SEQ>
+		<SEQ TYPE="OPERATOR">}</SEQ>
+		<SEQ TYPE="OPERATOR">{</SEQ>
+		<SEQ TYPE="OPERATOR">(</SEQ>
+		<SEQ TYPE="OPERATOR">)</SEQ>
+
+		<!-- Variables -->
+		<!-- "- originally LITERAL2 just change it back if you don't like it -->
+		<MARK_FOLLOWING TYPE="LABEL" EXCLUDE_MATCH="TRUE">%</MARK_FOLLOWING>
+		<!--MARK_PREVIOUS TYPE="LABEL" EXCLUDE_MATCH="TRUE">$</MARK_PREVIOUS-->
+
+		<!-- Function calls -->
+		<MARK_PREVIOUS TYPE="FUNCTION" EXCLUDE_MATCH="TRUE">{</MARK_PREVIOUS>
+
+		<KEYWORDS>
+          		<!--  datatype keywords -->
+			<KEYWORD1>int</KEYWORD1>
+			<KEYWORD1>float</KEYWORD1>
+			<KEYWORD1>vector</KEYWORD1>
+			<KEYWORD1>string</KEYWORD1>
+			<KEYWORD1>matrix</KEYWORD1>
+          		<!--  boolean constant keywords -->
+			<KEYWORD1>yes</KEYWORD1>
+			<KEYWORD1>no</KEYWORD1>
+			<KEYWORD1>on</KEYWORD1>
+			<KEYWORD1>off</KEYWORD1>
+			<KEYWORD1>true</KEYWORD1>
+			<KEYWORD1>false</KEYWORD1>
+
+			<!--  flowcontrol keywords
+			<KEYWORD2>if</KEYWORD2>
+			<KEYWORD2>else</KEYWORD2>
+			<KEYWORD2>for</KEYWORD2>
+			<KEYWORD2>while</KEYWORD2>
+			<KEYWORD2>do</KEYWORD2>
+			<KEYWORD2>in</KEYWORD2>
+			<KEYWORD2>break</KEYWORD2>
+			<KEYWORD2>continue</KEYWORD2>
+			<KEYWORD2>default</KEYWORD2>
+			<KEYWORD2>switch</KEYWORD2>
+			<KEYWORD2>case</KEYWORD2>-->
+
+          		<!--  other keywords -->
+			<KEYWORD2>global</KEYWORD2>
+			<KEYWORD2>return</KEYWORD2>
+			<KEYWORD2>source</KEYWORD2>
+			<KEYWORD2>catch</KEYWORD2>
+			<KEYWORD2>alias</KEYWORD2>
+			<KEYWORD2>proc</KEYWORD2>
+
+			<KEYWORD2>$alwayscollapse</KEYWORD2>
+			<KEYWORD2>$ambientboost</KEYWORD2>
+			<KEYWORD2>$animation</KEYWORD2>
+			<KEYWORD2>$animblocksize</KEYWORD2>
+			<KEYWORD2>$append</KEYWORD2>
+			<KEYWORD2>$attachment</KEYWORD2>
+			<KEYWORD2>$autocenter</KEYWORD2>
+
+			<KEYWORD2>$bbox</KEYWORD2>
+			<KEYWORD2>$body</KEYWORD2>
+			<KEYWORD2>$bodygroup</KEYWORD2>
+			<KEYWORD2>$bonemerge</KEYWORD2>
+			<KEYWORD2>$bonesaveframe</KEYWORD2>
+
+			<KEYWORD2>$cbox</KEYWORD2>
+			<KEYWORD2>$cdmaterials</KEYWORD2>
+			<KEYWORD2>$centerbonesonverts</KEYWORD2>
+			<KEYWORD2>$cmdlist</KEYWORD2>
+			<KEYWORD2>$collapsebones</KEYWORD2>
+			<KEYWORD2>$collisionmodel</KEYWORD2>
+			<KEYWORD2>$collisionjoints</KEYWORD2>
+			<KEYWORD2>$constantdirectionallight</KEYWORD2>
+			<KEYWORD2>$contents</KEYWORD2>
+			<KEYWORD2>$continue</KEYWORD2>
+			<KEYWORD2>$controller</KEYWORD2>
+			<KEYWORD2>$collisiontext</KEYWORD2>
+
+			<KEYWORD2>$declareanimation</KEYWORD2>
+			<KEYWORD2>$declaresequence</KEYWORD2>
+			<KEYWORD2>$defaultweightlist</KEYWORD2>
+
+			<KEYWORD2>$damping</KEYWORD2>
+			<KEYWORD2>$definebone</KEYWORD2>
+			<KEYWORD2>$definemacro</KEYWORD2>
+			<KEYWORD2>$definevariable</KEYWORD2>
+
+			<KEYWORD2>$eyeposition</KEYWORD2>
+
+			<KEYWORD2>$forcephonemecrossfade</KEYWORD2>
+
+			<KEYWORD2>$hbox</KEYWORD2>
+			<KEYWORD2>$hboxset</KEYWORD2>
+			<KEYWORD2>$hgroup</KEYWORD2>
+			<KEYWORD2>$hierarchy</KEYWORD2>
+
+			<KEYWORD2>$ikautoplaylock</KEYWORD2>
+			<KEYWORD2>$ikchain</KEYWORD2>
+			<KEYWORD2>$inertia</KEYWORD2>
+			<KEYWORD2>$illumposition</KEYWORD2>
+			<KEYWORD2>$include</KEYWORD2>
+			<KEYWORD2>$includemodel</KEYWORD2>
+
+			<KEYWORD2>$jigglebone</KEYWORD2>
+			<KEYWORD2>$jointcontents</KEYWORD2>
+			<KEYWORD2>$jointsurfaceprop</KEYWORD2>
+			<KEYWORD2>$jointcollide</KEYWORD2>
+			<KEYWORD2>$jointconstrain</KEYWORD2>
+			<KEYWORD2>$jointmassbias</KEYWORD2>
+			<KEYWORD2>$jointrotdamping</KEYWORD2>
+
+			<KEYWORD2>$keyvalues</KEYWORD2>
+
+			<KEYWORD2>$limitrotation</KEYWORD2>
+			<KEYWORD2>$lockbonelengths</KEYWORD2>
+			<KEYWORD2>$lod</KEYWORD2>
+
+			<KEYWORD2>$mass</KEYWORD2>
+			<KEYWORD2>$minlod</KEYWORD2>
+			<KEYWORD2>$model</KEYWORD2>
+			<KEYWORD2>$modelname</KEYWORD2>
+			<KEYWORD2>$mostlyopaque</KEYWORD2>
+			<KEYWORD2>$motionrollback</KEYWORD2>
+
+			<KEYWORD2>$noforcedfade</KEYWORD2>
+
+			<KEYWORD2>$opaque</KEYWORD2>
+			<KEYWORD2>$origin</KEYWORD2>
+
+			<KEYWORD2>$popd</KEYWORD2>
+			<KEYWORD2>$poseparameter</KEYWORD2>
+			<KEYWORD2>$prepend</KEYWORD2>
+			<KEYWORD2>$proceduralbones</KEYWORD2>
+			<KEYWORD2>$pushd</KEYWORD2>
+
+			<KEYWORD2>$realignbones</KEYWORD2>
+			<KEYWORD2>$renamebone</KEYWORD2>
+			<KEYWORD2>$renamematerial</KEYWORD2>
+			<KEYWORD2>$root</KEYWORD2>
+			<KEYWORD2>$rootbone</KEYWORD2>
+			<KEYWORD2>$rotdamping</KEYWORD2>
+
+			<KEYWORD2>$scale</KEYWORD2>
+			<KEYWORD2>$screenalign</KEYWORD2>
+			<KEYWORD2>$sequence</KEYWORD2>
+			<KEYWORD2>$shadowlod</KEYWORD2>
+			<KEYWORD2>$skipboneinbbox</KEYWORD2>
+			<KEYWORD2>$skiptransition</KEYWORD2>
+			<KEYWORD2>$staticprop</KEYWORD2>
+			<KEYWORD2>$surfaceprop</KEYWORD2>
+
+			<KEYWORD2>$texturegroup</KEYWORD2>
+
+			<KEYWORD2>$unlockdefinebones</KEYWORD2>
+			<KEYWORD2>$upaxis</KEYWORD2>
+
+			<KEYWORD2>$weightlist</KEYWORD2>
+
+          		<!--  mel functions/commands -->
+			<KEYWORD3>activity</KEYWORD3>
+			<KEYWORD3>addlayer</KEYWORD3>
+			<KEYWORD3>alignto</KEYWORD3>
+			<KEYWORD3>blend</KEYWORD3>
+			<KEYWORD3>blendlayer</KEYWORD3>
+			<KEYWORD3>blendwidth</KEYWORD3>
+			<KEYWORD3>delta</KEYWORD3>
+			<KEYWORD3>event</KEYWORD3>
+			<KEYWORD3>eyeball</KEYWORD3>
+			<KEYWORD3>fps</KEYWORD3>
+			<KEYWORD3>flexcontroller</KEYWORD3>
+			<KEYWORD3>frames</KEYWORD3>
+			<KEYWORD3>hidden</KEYWORD3>
+			<KEYWORD3>ikrule</KEYWORD3>
+			<KEYWORD3>iklock</KEYWORD3>
+			<KEYWORD3>limit</KEYWORD3>
+			<KEYWORD3>localvar</KEYWORD3>
+			<KEYWORD3>loop</KEYWORD3>
+			<KEYWORD3>noanimation</KEYWORD3>
+			<KEYWORD3>numframes</KEYWORD3>
+			<KEYWORD3>subtract</KEYWORD3>
+			<KEYWORD3>range</KEYWORD3>
+			<KEYWORD3>release</KEYWORD3>
+			<KEYWORD3>rotateto</KEYWORD3>
+			<KEYWORD3>startloop</KEYWORD3>
+			<KEYWORD3>touch</KEYWORD3>
+			<KEYWORD3>usesource</KEYWORD3>
+			<KEYWORD3>bonetreecollapse</KEYWORD3>
+			<KEYWORD3>replacebone</KEYWORD3>
+			<KEYWORD3>replacemodel</KEYWORD3>
+			<KEYWORD3>nofacial</KEYWORD3>
+			<KEYWORD3>x</KEYWORD3>
+			<KEYWORD3>y</KEYWORD3>
+			<KEYWORD3>z</KEYWORD3>
+		</KEYWORDS>
+	</RULES>
+</MODE>
+
+

@@ -1,0 +1,148 @@
+//
+// zooAttrScroller creates a virtual slider for changing attributes.
+//
+// Created by Hamish McKenzie zootoolbox@googlegroups.com
+// Created : 08 March 2003
+// Distributed GPL v2 license
+//
+//	!!! This script has been modified by David Johnson - david@djx.com.au - Sunday, 9 August 2009 !!!
+//
+//	Enables finer control than the standard channel box virtual sliders.
+//
+//	It is designed to be invoked via a hotkey.
+//	Assign zooAttrScroller to the PRESS action
+//	and zooAttrScrollerKillUI to the RELEASE action.
+//
+//
+//	usage:	Select some objects
+//			hotkey-LeftMouseButton to display a marking-menu with a list of the keyable attributes
+//			select an attribute and the cursor will change to cross-hairs
+//			drag in the viewport to change values: right is +, left is -
+//
+//			use CTRL-drag for more precision, and MiddleMouseButton for even greater precision.
+//
+//			hotkey with no mosue click invokes the virtial slider with the previously selected attribute.
+//
+// .......................................................................................................................
+// DJ MOD
+//	By storing the anchor point in a global variable, $zooAttrScrollerZeroPoint[],
+//	the dragCommand can update it at each itteration and thus respond immediately to changes in drag direction.
+//	To avoid jumps between presses, we need to identify the first itteration after a press and reset the anchor.
+//	While it may seem logical to do the reset in the pressCommand,
+//	it doesnt work correctly unless we do it in the 1st itteration of the dragCommand.
+//	So $zooAttrScrollerIsPress is a global int that gets turned on by the pressCommand, and acted upon in the dragCommand.
+// .......................................................................................................................
+//
+//	NOTE for HOTKEY setup:
+//		You will need to modify this script, specifically the popupMenu arguments in zooAttrScroller(),
+//		if you need to use CTL, ALT, or SHift modifiers for your hotkey.
+//		For example if your hotkey uses the CTRL key then change "-ctl 0" to "-ctl 1".
+// .......................................................................................................................
+
+global proc zooAttrScroller() {
+	global int $zooIsClicked;
+	
+	global float $zooAttrScrollerZeroPoint[];
+	global int $zooAttrScrollerIsPress;
+
+	$zooIsClicked = 0;
+	if( `popupMenu -ex tempMM` ) deleteUI tempMM;
+
+	// For HOTKEY setup, you may need to alter the next command.
+	// DJ MOD - I'm using @ as my hotkey so I changed "-sh 0" to "-sh 1"
+	//
+	popupMenu -ctl 0 -alt 0 -sh 1 -mm 1 -b 1 -aob 1 -p viewPanes -pmc ( "zooAttrScrollerBuildMM tempMM" ) tempMM;
+}
+
+
+global proc zooAttrScrollerBuildMM ( string $parent ) {
+	global int $zooIsClicked;
+	string $sel[] = `ls -sl`;
+
+	if( !`size $sel` ) { menuItem -l "no objects selected"; return; }
+	string $attrs[] = `listAttr -k`;
+
+	setParent -m $parent;
+	popupMenu -e -dai $parent;
+
+	$attrs = `stringArrayRemoveDuplicates $attrs`;
+	$zooIsClicked = 1;
+
+	for ( $a in $attrs ) menuItem -l $a -command ( "zooScrollAttr " + $a );
+}
+
+
+global proc zooScrollAttr( string $attr ) {
+	if( !`draggerContext -q -ex zooAttrScrollerCtx` ) draggerContext -undoMode "step" -pressCommand( "zooAttrScrollerPressCmd "+ $attr ) -dragCommand( "zooAttrScrollerDragCmd "+ $attr ) -cursor "crossHair" zooAttrScrollerCtx;
+	else draggerContext -e -undoMode "step" -pressCommand( "zooAttrScrollerPressCmd "+ $attr ) -dragCommand( "zooAttrScrollerDragCmd "+ $attr ) -cursor "crossHair" zooAttrScrollerCtx;
+	
+	setToolTo zooAttrScrollerCtx;
+}
+
+
+global proc zooAttrScrollerPressCmd( string $attr ) {
+	global int $zooAttrScrollerIsPress;
+	
+	$zooAttrScrollerIsPress = 1;	
+}
+
+
+global proc zooAttrScrollerDragCmd( string $attr ) {
+	global float $zooAttrScrollerZeroPoint[];
+	global int $zooAttrScrollerIsPress;
+	
+	// if this is the 1st dragCommand itteration after a press, then reset the anchor point
+	if($zooAttrScrollerIsPress) {
+		$zooAttrScrollerZeroPoint = `draggerContext -q -anchorPoint zooAttrScrollerCtx`;
+		$zooAttrScrollerIsPress = 0;
+	}
+	
+	float $pressPosition[] = $zooAttrScrollerZeroPoint;
+	float $dragPosition[] = `draggerContext -q -dragPoint zooAttrScrollerCtx`;
+	//print("anchor: "+$zooAttrScrollerZeroPoint[0]+", drag: "+$dragPosition[0]+"\n");
+
+	int $button = `draggerContext -q -button zooAttrScrollerCtx`;
+	string $mod = `draggerContext -q -modifier zooAttrScrollerCtx`;
+	int $div1 = ($button == 2) ? 500 : 10;		// button 1 = normal speed, button 2 = slow
+	int $div2 = ($mod == "ctrl") ? 10 : 1;	// slower down when CTRL modifier is used
+	int $div = $div1 * $div2;					//
+
+	float $a;
+	string $sel[] = `ls -sl`;
+	for( $obj in $sel )
+		if( `objExists ( $obj +"."+ $attr )` ) {
+			$a = `getAttr ( $obj +"."+ $attr )`;
+			setAttr ( $obj +"."+ $attr ) ( ($dragPosition[0]-$pressPosition[0])/$div + $a);
+		}
+		
+	refresh -cv;	// so we see realtime feedback
+
+	string $dir = ($dragPosition[0] > $pressPosition[0]) ? "+ " : "- ";
+	string $message = ($dir + $attr);
+	draggerContext -edit -drawString $message zooAttrScrollerCtx;
+	
+	// update anchor point to current dragPoint
+	$zooAttrScrollerZeroPoint = $dragPosition;
+}
+
+// holdCommand - not used
+global proc zooAttrScrollerHoldCmd( string $attr ) {
+	global float $zooAttrScrollerZeroPoint[];
+	$zooAttrScrollerZeroPoint = `draggerContext -q -dragPoint zooAttrScrollerCtx`;
+}
+
+// releaseCommand - not used
+global proc zooAttrScrollerReleaseCmd( string $attr ) {
+	global float $zooAttrScrollerZeroPoint[];
+	$zooAttrScrollerZeroPoint = `draggerContext -q -dragPoint zooAttrScrollerCtx`;
+}
+
+global proc zooAttrScrollerKillUI() {
+	global int $zooIsClicked;
+	deleteUI tempMM;
+	if(!$zooIsClicked) setToolTo zooAttrScrollerCtx;
+	else $zooIsClicked = 0;
+}
+
+
+//zoo.end

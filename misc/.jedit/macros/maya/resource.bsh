@@ -1,0 +1,13 @@
+void resource() {
+	filename = buffer.name.toString();
+	extnStart = filename.indexOf(".");
+	scriptName = filename.substring(0,extnStart);
+	extn = filename.substring(extnStart+1);
+
+	cmd = "";
+	if( extn.compareToIgnoreCase("py") == 0 ) cmd = "stm.cmd python \"import "+ scriptName +"; reload("+ scriptName +" );\" ; print \"reload of python module attempted\\n\";";
+	else if( extn.compareToIgnoreCase("mel") == 0 ) cmd = "stm.cmd scriptEditorInfo -ch; print \"attempting to re-source: "+ buffer.path.replace("\\","/") +" \\n \" ; source \""+ buffer.path.replace("\\","/") +" \" ;";
+	process = Runtime.getRuntime().exec(cmd);
+	}
+
+resource();

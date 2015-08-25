@@ -1,0 +1,9 @@
+void checkout() {
+	//Macros.message(view,buffer.getPath());
+	cmd = "p4 edit \""+ buffer.getPath() +"\"";
+	process = Runtime.getRuntime().exec(cmd);
+	process.waitFor();
+	view.getBuffer().checkFileStatus(view);
+	}
+
+checkout();

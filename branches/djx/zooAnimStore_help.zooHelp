@@ -1,0 +1,39 @@
+-------zooAnimStore-------
+
+Stores/Reloads poses and animations.
+
+To STORE a POSE: 
+select some objects and "create pose clip" from the rmb-menu.
+
+If you check either the "apply to parent qss" or "apply to current qss" then you only need select a single object. If the object is part of a quick select set (qss) then all the objects in that set will be part of the pose.
+
+To RELOAD a POSE:
+Clip data can be reloaded by clicking the thumbnail in the UI. The way this works depends on what you have selected, what options you have set and whether you use the modifier keys (ctrl, alt and shift).
+
+For POSES this is a summary of possible reload actions:
+
+Select the objects and click the thumbnail. Pose will be applied to the selected objects.
+
+If "apply to parent qss" or "apply to current qss" is checked, then pose will also be applied to all objects in the same qss.
+
+Shift-click: the pose will be applied to all objects that were stored in the pose.
+
+Ctrl-click: the pose will be applied in increments depending on the position of the "incremental apply" slider.
+
+Alt-click: the pose will be applied using "loose name matching" which makes it possible to apply the pose to a different rig as long as the names are similar. For example rigA_control_R was stored in the pose, but rigB_control_R is the object you selected. Click will do nothing, but Alt-click will apply the pose because the names are similar.
+
+Shift, Ctrl and Alt can be used in combination.
+
+ANIM STORES:
+Clips can be organized into folders called "stores".
+These store folders are created in your current maya project under a folder called zooAnimStore. You can use windows explorer to copy stores or individual clips from one project to another.
+
+If you use the zooAnimStore UI to delete stores, it does not actually delete the folder. Instead it renames it adding .deleted to the name. This means you can use windows explorer to reinstate a deleted store by renaming it and restarting the zooAnimStore UI.
+
+However if you delete a clip, then the file will be deleted and you cant get it back.
+
+LOCAL vs GLOBAL
+zooAnimStore was written to be used in a shared environment. It is possible to set up a "global" storage location as well as a "local" one. Currently the global location is set to use c:\temp and should NOT be used.
+There are still some issues to be worked out with the global store, so until further notice, PLEASE USE THE LOCAL STORE. You can hide the global store by dragging the divider bar all the way to the right.
+
+---this help file is not complete... ask David for more info---

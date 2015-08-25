@@ -1,0 +1,4 @@
+to change amount of memory available to jedit:
+jedinit.exe
+
+change the -mx32m to -mx256m or however much memory you want jedit to have available

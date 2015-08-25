@@ -1,0 +1,3 @@
+[global]
+fne|for( $n=0; $n<$num; $n++ ) 
+zend|//zoo.end\n//macaroniKazoo ©2007

@@ -1,0 +1,10 @@
+void p4ToHere() {
+	filepath = buffer.file.toString();
+	//extnStart = filename.indexOf(".");
+	//scriptName = filename.substring(0,extnStart);
+
+	cmd = "p4win -q -s \""+ filepath +"\"";
+	process = Runtime.getRuntime().exec(cmd);
+	}
+
+p4ToHere();

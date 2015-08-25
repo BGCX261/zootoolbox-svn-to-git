@@ -1,0 +1,9 @@
+void revert() {
+	cmd = "p4 revert \""+ buffer.getPath() +"\"";
+	process = Runtime.getRuntime().exec(cmd);
+	process.waitFor();
+	view.getBuffer().checkFileStatus(view);
+	buffer.reload(view);
+	}
+
+revert();

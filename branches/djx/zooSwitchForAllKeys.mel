@@ -1,0 +1,105 @@
+zooFlags;
+
+//
+//	zooSwitchForAllKeys.mel
+//		Written to be used as an object menu command for swithing between IK and FK for all keys.
+//		This saves lengthy command strings being stored on the object,
+//		and makes it easier to have a consistent switching process.
+//
+
+global proc zooSwitchForAllKeys(string $optionStr) {
+
+	if($optionStr == "") return;
+	
+	print("option str: "+ $optionStr +"\n");
+
+	string $optionTemp[] = {};
+	string $mode = "";				// to IK or FK
+	string $selObjs[] = {};			// what needs selecting
+	
+	string $ik_ctl = "";			// ik controller
+	string $ik_mid = "";			// ik mid control (elbow, knee)
+	string $ik_eff = "";			// ik handle (may be same as $ik_ctl)
+	
+	string $fk_end = "";			// fk controllers
+	string $fk_mid = "";			//
+	string $fk_upr = "";			//
+	
+	string $blendAttr = "";			// arms have ikBlend, legs have fkBlend (why?)
+	
+	// decode option string
+	$optionTemp = `zooGetFlagArguments $optionStr mode`; if( `size $optionTemp` ) $mode = $optionTemp[0];
+	$optionTemp = `zooGetFlagArguments $optionStr selObjs`; if( `size $optionTemp` ) $selObjs = $optionTemp;
+	$optionTemp = `zooGetFlagArguments $optionStr ik_ctl`; if( `size $optionTemp` ) $ik_ctl = $optionTemp[0];
+	$optionTemp = `zooGetFlagArguments $optionStr ik_mid`; if( `size $optionTemp` ) $ik_mid = $optionTemp[0];
+	$optionTemp = `zooGetFlagArguments $optionStr ik_eff`; if( `size $optionTemp` ) $ik_eff = $optionTemp[0];
+	$optionTemp = `zooGetFlagArguments $optionStr fk_end`; if( `size $optionTemp` ) $fk_end = $optionTemp[0];
+	$optionTemp = `zooGetFlagArguments $optionStr fk_mid`; if( `size $optionTemp` ) $fk_mid = $optionTemp[0];
+	$optionTemp = `zooGetFlagArguments $optionStr fk_upr`; if( `size $optionTemp` ) $fk_upr = $optionTemp[0];
+	$optionTemp = `zooGetFlagArguments $optionStr blendAttr`; if( `size $optionTemp` ) $blendAttr = $optionTemp[0];
+	
+	print("mode: "+ $mode +"\n");
+	
+	if($blendAttr == "") {warning ("zooSwitchForAllKeys: Missing -blendAttr flag. Nothing done."); return;}
+
+	// validate flags
+	switch ($mode) {
+		case "":
+			{warning ("zooSwitchForAllKeys: Missing -mode flag. Nothing done."); return;}
+			break;
+			
+		case "ik":
+		case "IK":
+			if($ik_ctl == "" || $ik_mid == "" || $fk_end == "")
+				{warning ("zooSwitchForAllKeys: You need to at least specify ik_ctl, ik_mid and fk_end. Nothing done."); return;}
+				
+			if($ik_eff == "") $ik_eff = $ik_ctl;		// ik handle and ik control may be the same object (eg arm)
+			
+			zooSwitchToIKForAllKeys $ik_ctl $ik_eff $ik_mid $fk_end $blendAttr $selObjs;
+			
+			break;
+			
+		case "fk":
+		case "FK":
+			if($ik_ctl == "")
+				{warning ("zooSwitchForAllKeys: You need to at least specify ik_ctl. Nothing done."); return;}
+			
+			if($ik_eff == "") $ik_eff = $ik_ctl;		// ik handle and ik control may be the same object (eg arm)
+			
+			zooSwitchToFKForAllKeys $ik_ctl $ik_eff $blendAttr $selObjs;
+			
+			break;
+			
+		default:
+			warning ("zooSwitchForAllKeys: \""+ $mode +"\" is not a valid mode. Nothing done."); return;
+			break;
+	}	
+}
+
+// load up zooKeyCommands window for switching to IK
+global proc zooSwitchToIKForAllKeys(string $ik_ctl, string $ik_eff, string $ik_mid, string $fk_end, string $blendAttr, string $selObjs[]) {
+
+		select $fk_end $selObjs;						// select the objects from which keyframes will be extracted
+		checkBox -e -v 1 zooKeyCommandsCheckCombine;	// set some options in the zooKeyCommands window
+		checkBox -e -v 1 zooKeyCommandsCheckSolo;		//
+		
+		// arms and legs use different attributes for ik/fk blending
+		float $b = ($blendAttr == "ikBlend") ? 1 : 0;
+		string $offCmd = ("setAttr "+ $ik_ctl +"."+ $blendAttr +" "+ $b);
+
+		zooSetKeyCommandsWindowCmd ("if(`getAttr "+ $ik_ctl +"."+ $blendAttr +"` != "+ $b +") {\n\tsetKeyframe -at "+ $blendAttr +" "+ $ik_ctl +";\n}\n&&&\nif(`getAttr "+ $ik_ctl +"."+ $blendAttr +"` != "+ $b +") {\n\tselect "+ $fk_end +";\n\tzooFlags;\n\tzooAlign \"\";\n\tzooAlignIK \"-control "+ $ik_ctl +" -ikHandle "+ $ik_eff +" -pole "+ $ik_mid +" -offCmd "+ $offCmd +"\";\n}");
+}
+
+// load up zooKeyCommands window for switching to FK
+global proc zooSwitchToFKForAllKeys(string $ik_ctl, string $ik_eff, string $blendAttr, string $selObjs[]) {
+
+		select $ik_ctl $selObjs;						// select the objects from which keyframes will be extracted
+		checkBox -e -v 1 zooKeyCommandsCheckCombine;	// set some options in the zooKeyCommands window
+		checkBox -e -v 1 zooKeyCommandsCheckSolo;		//
+		
+		// arms and legs use different attributes for ik/fk blending
+		float $b = ($blendAttr == "ikBlend") ? 0 : 1;
+				
+		zooSetKeyCommandsWindowCmd ("if(`getAttr "+ $ik_ctl +"."+ $blendAttr +"` != "+ $b +") {\n\tsetKeyframe -at "+ $blendAttr +" "+ $ik_ctl +";\n}\n&&&\nif(`getAttr "+ $ik_ctl +"."+ $blendAttr +"` != "+ $b +") {\n\tselect "+ $ik_ctl +";\n\tzooFlags;\n\tzooAlign \"\";\n\tzooAlignFK \"-control "+ $ik_ctl +" -ikHandle "+ $ik_eff +" -offCmd setAttr "+ $ik_ctl +"."+ $blendAttr +" "+ $b +"\";\n}");
+				
+}
